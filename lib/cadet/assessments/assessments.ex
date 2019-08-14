@@ -82,11 +82,11 @@ defmodule Cadet.Assessments do
       |> Multi.run(:unattempted, fn _repo, _ ->
         {:ok, get_user_story_by_type(user, :unattempted)}
       end)
-      |> Multi.run(:result, fn _repo, %{unattempted: unattempted_story} ->
-        if unattempted_story do
-          {:ok, %{play_story?: true, story: unattempted_story}}
+      |> Multi.run(:result, fn _repo, %{unattempted: unattempted_stories} ->
+        if !Enum.empty?(unattempted_stories) do
+          {:ok, %{play_story?: true, story: unattempted_stories}}
         else
-          {:ok, %{play_story?: false, story: get_user_story_by_type(user, :attempted)}}
+          {:ok, %{play_story?: false, story: []}}
         end
       end)
       |> Repo.transaction()
@@ -117,8 +117,7 @@ defmodule Cadet.Assessments do
     |> filter_and_sort.()
     |> order_by([a], a.type)
     |> select([a], a.story)
-    |> first()
-    |> Repo.one()
+    |> Repo.all()
   end
 
   def assessment_with_questions_and_answers(id, user = %User{}) when is_ecto_id(id) do

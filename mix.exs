@@ -44,6 +44,7 @@ defmodule Cadet.Mixfile do
     [
       {:arc, "~> 0.11.0"},
       {:arc_ecto, "~> 0.11.0"},
+      {:configparser_ex, "~> 2.0"},
       {:csv, "~> 2.3.0"},
       {:ecto_enum, "~> 1.0"},
       {:ex_aws, "~> 2.0"},

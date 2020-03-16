@@ -62,103 +62,10 @@ defmodule Cadet.CodeMetrics.LambdaWorkerTest do
             answer: Repo.get(Answer, answer.id)
           })
 
-          assert_called(
-            Que.add(ResultStoreWorker, %{
-              answer_id: answer.id,
-              result: %{
-                result: [
-                  %{
-                    "resultType" => "error",
-                    "errors" => [
-                      %{
-                        "errorType" => "syntax",
-                        "line" => 1,
-                        "location" => "student",
-                        "errorLine" =>
-                          "consst f = i => i === 0 ? 0 : i < 3 ? 1 : f(i-1) + f(i-2);",
-                        "errorExplanation" => "SyntaxError: Unexpected token (2:7)"
-                      }
-                    ]
-                  },
-                  %{
-                    "resultType" => "error",
-                    "errors" => [
-                      %{
-                        "errorType" => "syntax",
-                        "line" => 1,
-                        "location" => "student",
-                        "errorLine" =>
-                          "consst f = i => i === 0 ? 0 : i < 3 ? 1 : f(i-1) + f(i-2);",
-                        "errorExplanation" => "SyntaxError: Unexpected token (2:7)"
-                      }
-                    ]
-                  }
-                ],
-                grade: 0,
-                status: :success
-              }
-            })
-          )
         end
       end
     end
 
-    test "lambda errors", %{question: question, answer: answer} do
-      use_cassette "autograder/errors#2", custom: true do
-        with_mock Que, add: fn _, _ -> nil end do
-          LambdaWorker.perform(%{
-            question: Repo.get(Question, question.id),
-            answer: Repo.get(Answer, answer.id)
-          })
-
-          assert_called(
-            Que.add(ResultStoreWorker, %{
-              answer_id: answer.id,
-              result: %{
-                grade: 0,
-                status: :failed,
-                result: [
-                  %{
-                    "resultType" => "error",
-                    "errors" => [
-                      %{
-                        "errorType" => "systemError",
-                        "errorMessage" =>
-                          "2019-05-18T05:26:11.299Z 21606396-02e0-4fd5-a294-963bb7994e75 Task timed out after 10.01 seconds"
-                      }
-                    ]
-                  }
-                ]
-              }
-            })
-          )
-        end
-      end
-    end
-
-    test "should not run with no testcases", %{answer: answer} do
-      question =
-        insert(
-          :programming_question,
-          %{
-            question:
-              build(:programming_question_content, %{
-                public: [],
-                private: []
-              })
-          }
-        )
-
-      log =
-        capture_log(fn ->
-          LambdaWorker.perform(%{
-            question: Repo.get(Question, question.id),
-            answer: Repo.get(Answer, answer.id)
-          })
-        end)
-
-      assert log =~ "No testcases found. Skipping autograding for answer_id: #{answer.id}"
-    end
   end
 
   describe "on_failure" do
@@ -178,30 +85,6 @@ defmodule Cadet.CodeMetrics.LambdaWorkerTest do
         assert log =~ "answer_id: #{answer.id}"
         assert log =~ "Task timed out after 1.00 seconds"
 
-        assert_called(
-          Que.add(
-            ResultStoreWorker,
-            %{
-              answer_id: answer.id,
-              result: %{
-                grade: 0,
-                status: :failed,
-                result: [
-                  %{
-                    "resultType" => "error",
-                    "errors" => [
-                      %{
-                        "errorType" => "systemError",
-                        "errorMessage" =>
-                          "Autograder runtime error. Please contact a system administrator"
-                      }
-                    ]
-                  }
-                ]
-              }
-            }
-          )
-        )
       end
     end
   end

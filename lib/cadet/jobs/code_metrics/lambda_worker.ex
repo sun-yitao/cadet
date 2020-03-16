@@ -8,6 +8,7 @@ defmodule Cadet.CodeMetrics.LambdaWorker do
   require Logger
 
   alias Cadet.Autograder.ResultStoreWorker
+  alias Cadet.Assessments.{Answer, Question}
 
   @lambda_name :cadet |> Application.fetch_env!(:codemetrics) |> Keyword.get(:lambda_name)
 
@@ -16,14 +17,15 @@ defmodule Cadet.CodeMetrics.LambdaWorker do
   the correct shape to dispatch to lambda, waits for the response, parses it, and enqueues a
   storage job.
   """
-  def perform(params = %{student_program: student_program}) do
-    lambda_params = params
+  def perform(params = %{answer: answer = %Answer{}, question: %Question{}}) do
+    lambda_params = build_request_params(params)
     response =
       @lambda_name
       |> ExAws.Lambda.invoke(lambda_params, %{})
       |> ExAws.request!()
 
     result = parse_response(response)
+    IO.inspect(result)
 
     #Que.add(ResultStoreWorker, %{answer_id: answer.id, result: result})
   end
@@ -31,21 +33,52 @@ defmodule Cadet.CodeMetrics.LambdaWorker do
   defp parse_response(response) when is_map(response) do
     # If the lambda crashes, results are in the format of:
     # %{"errorMessage" => "${message}"}
-    if Map.has_key?(response, "errorMessage") do
+    if Map.has_key?(response, "errorMessage") || response["codeLength"] == nil do
       %{
-        grade: 0,
+        codeLength: 0,
+        codeMetric2: 0,
+        codeMetric3: 0,
         status: :failed,
-        result: [
-          %{
-            "resultType" => "error",
-            "errors" => [
-              %{"errorType" => "systemError", "errorMessage" => response["errorMessage"]}
-            ]
-          }
-        ]
       }
     else
-      %{codeLength: response["codeLength"], codeMetric2: response["codeMetric2"], codeMetric3: response["codeMetric3"], status: :success}
+      %{codeLength: response["codeLength"], codeMetric2: response["codeMetric2"],
+        codeMetric3: response["codeMetric3"], status: :success}
     end
   end
+
+  def on_failure(%{answer: answer = %Answer{}, question: %Question{}}, error) do
+    error_message =
+      "Failed to get autograder result. answer_id: #{answer.id}, error: #{
+        inspect(error, pretty: true)
+      }"
+
+    Logger.error(error_message)
+    Sentry.capture_message(error_message)
+  end
+
+  def build_request_params(%{question: question = %Question{}, answer: answer = %Answer{}}) do
+    question_content = question.question
+
+    {_, upcased_name_external} =
+      question.grading_library.external
+      |> Map.from_struct()
+      |> Map.get_and_update(
+        :name,
+        &{&1, &1 |> Atom.to_string() |> String.upcase()}
+      )
+
+    %{
+      prependProgram: Map.get(question_content, "prepend", ""),
+      studentProgram: Map.get(answer.answer, "code"),
+      postpendProgram: Map.get(question_content, "postpend", ""),
+      testcases:
+        Map.get(question_content, "public", []) ++ Map.get(question_content, "private", []),
+      library: %{
+        chapter: question.grading_library.chapter,
+        external: upcased_name_external,
+        globals: Enum.map(question.grading_library.globals, fn {k, v} -> [k, v] end)
+      }
+    }
+  end
+
 end

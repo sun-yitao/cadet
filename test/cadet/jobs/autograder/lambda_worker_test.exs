@@ -48,28 +48,10 @@ defmodule Cadet.Autograder.LambdaWorkerTest do
 
   describe "#perform" do
     test "success", %{question: question, answer: answer} do
-      use_cassette "autograder/success#1", custom: true do
-        with_mock Que, add: fn _, _ -> nil end do
           LambdaWorker.perform(%{
             question: Repo.get(Question, question.id),
             answer: Repo.get(Answer, answer.id)
           })
-
-          assert_called(
-            Que.add(ResultStoreWorker, %{
-              answer_id: answer.id,
-              result: %{
-                result: [
-                  %{"resultType" => "pass", "score" => 1},
-                  %{"resultType" => "pass", "score" => 1}
-                ],
-                grade: 2,
-                status: :success
-              }
-            })
-          )
-        end
-      end
     end
 
     test "submission errors", %{question: question, answer: answer} do

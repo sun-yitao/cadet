@@ -7,7 +7,7 @@ defmodule Cadet.CodeMetrics.LambdaWorker do
 
   require Logger
 
-  alias Cadet.Autograder.ResultStoreWorker
+  alias Cadet.CodeMetrics.ResultStoreWorker
   alias Cadet.Assessments.{Answer, Question}
 
   @lambda_name :cadet |> Application.fetch_env!(:codemetrics) |> Keyword.get(:lambda_name)
@@ -25,7 +25,7 @@ defmodule Cadet.CodeMetrics.LambdaWorker do
       |> ExAws.request!()
 
     result = parse_response(response)
-    IO.inspect(result)
+    IO.inspect(result) #TODO remove this after debugging
 
     #Que.add(ResultStoreWorker, %{answer_id: answer.id, result: result})
   end
